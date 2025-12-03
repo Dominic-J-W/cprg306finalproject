@@ -1,13 +1,20 @@
-'use client';
+"use client";
 import { useEffect, useState } from "react";
 
 function GamesList() {
   const [games, setGames] = useState([]);
+  const [genres, setGenres] = useState([]);
+  const [selectedGenre, setSelectedGenre] = useState("");
   const [hasSearched, setHasSearched] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
 
-  const loadGames = async (term = "") => {
-    const url = term ? `/api/game?search=${encodeURIComponent(term)}` : "/api/game";
+  const loadGames = async (term = "", genre = "") => {
+    let url = "/api/game";
+    const params = [];
+    if (term) params.push(`search=${encodeURIComponent(term)}`);
+    if (genre) params.push(`genre=${encodeURIComponent(genre)}`);
+    if (params.length > 0) url += `?${params.join("&")}`;
+
     const response = await fetch(url);
     if (!response.ok) {
       console.error("Failed to fetch games:", response.statusText);
@@ -18,26 +25,56 @@ function GamesList() {
     setHasSearched(true);
   };
 
+  const loadGenres = async () => {
+    const response = await fetch("/api/genres");
+    if (!response.ok) {
+      console.error("Failed to fetch genres:", response.statusText);
+      return [];
+    }
+    const data = await response.json();
+    setGenres(data);
+  };
+
   useEffect(() => {
-    loadGames(); // initial load
+    loadGames();
+    loadGenres();
   }, []);
 
   return (
-    <div className="w-screen h-screen bg-gray-900 text-gray-100 flex flex-col p-8">
-      <h2 className="text-3xl font-bold mb-6 text-indigo-400 tracking-wide">
-        🎮 Games
+    <div className="w-screen h-screen bg-gradient-to-br from-gray-900 via-indigo-950 to-purple-900 text-gray-100 flex flex-col p-10">
+      <h2 className="text-4xl font-extrabold mb-8 bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 via-pink-400 to-purple-500 drop-shadow-lg tracking-wide">
+        🎮 GameScout Library
       </h2>
 
-      <input
-        type="text"
-        placeholder="Search games..."
-        value={searchTerm}
-        onChange={(e) => {
-          setSearchTerm(e.target.value);
-          loadGames(e.target.value);
-        }}
-        className="w-full mb-6 p-3 rounded-lg bg-gray-800 text-gray-200 placeholder-gray-500 border border-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
-      />
+      <div className="flex gap-4 mb-8 w-full">
+        <input
+          type="text"
+          placeholder="Search games..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="flex-1 p-4 rounded-xl bg-gray-800 text-gray-200 placeholder-gray-500 border border-gray-700 focus:outline-none focus:ring-2 focus:ring-pink-400 focus:border-indigo-500 transition shadow-lg"
+        />
+        <select
+          value={selectedGenre}
+          onChange={(e) => setSelectedGenre(e.target.value)}
+          className="p-4 rounded-xl bg-gray-800 text-gray-200 border border-gray-700 focus:outline-none focus:ring-2 focus:ring-pink-400 focus:border-indigo-500 transition shadow-lg"
+        >
+          <option value="">All Genres</option>
+          {genres.map((genre) => (
+            <option key={genre.id} value={genre.id}>
+              {genre.name}
+            </option>
+          ))}
+        </select>
+        <button
+          onClick={() => loadGames(searchTerm, selectedGenre)}
+          className="px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-lg font-semibold text-white shadow-lg hover:shadow-indigo-500/50 transition-transform transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-pink-400"
+        >
+          Search
+        </button>
+      </div>
+      
+
 
       <div className="flex-1 overflow-y-auto">
         {!hasSearched ? (
@@ -45,47 +82,45 @@ function GamesList() {
         ) : games.length === 0 ? (
           <p className="text-red-400 italic">No games found.</p>
         ) : (
-          <ul className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-7 gap-6">
+          <ul className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-8">
             {games.map((game) => (
               <li
                 key={game.id}
-                className="bg-gray-800 border border-gray-700 rounded-lg p-4 shadow-md hover:shadow-indigo-500/30 transition flex flex-col"
+                className="bg-gray-800/70 backdrop-blur-md border border-gray-700 rounded-xl p-5 shadow-lg hover:shadow-pink-500/40 transition transform hover:scale-105 flex flex-col"
               >
-                {/* Cover image clickable */}
-                {game.cover?.url && (
+                {game.cover?.image_id && (
                   <a href={game.url} target="_blank" rel="noopener noreferrer">
                     <img
-                      src={`https:${game.cover.url}`}
+                      src={`https://images.igdb.com/igdb/image/upload/t_cover_big/${game.cover.image_id}.jpg`}
                       alt={`${game.name} cover`}
-                      className="w-full h-48 object-cover rounded-md mb-3 border border-gray-700 hover:opacity-90 transition"
+                      className="w-full h-56 object-cover rounded-lg mb-4 border border-gray-700 hover:opacity-90 transition"
                     />
                   </a>
                 )}
 
-                {/* Game name clickable */}
                 <a
                   href={game.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-lg font-semibold text-indigo-300 hover:text-indigo-400 transition"
+                  className="text-xl font-semibold text-indigo-300 hover:text-pink-400 transition"
                 >
                   {game.name}
                 </a>
 
                 {game.release_dates?.[0]?.human && (
-                  <p className="text-sm text-gray-400">
+                  <p className="text-sm text-gray-400 mt-1">
                     Released: {game.release_dates[0].human}
                   </p>
                 )}
 
                 {game.age_ratings?.[0]?.rating_category && (
-                  <p className="text-sm text-indigo-300">
+                  <p className="text-sm text-indigo-300 mt-1">
                     Rating Category: {game.age_ratings[0].rating_category}
                   </p>
                 )}
 
                 {game.age_ratings?.[0]?.synopsis && (
-                  <p className="text-sm text-gray-400 italic mt-1">
+                  <p className="text-sm text-gray-400 italic mt-2">
                     {game.age_ratings[0].synopsis}
                   </p>
                 )}

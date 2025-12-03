@@ -1,4 +1,3 @@
-// app/api/game/route.js
 import { NextResponse } from "next/server";
 
 export async function GET(req) {
@@ -6,7 +5,6 @@ export async function GET(req) {
     const clientId = process.env.TWITCH_CLIENT_ID;
     const clientSecret = process.env.TWITCH_CLIENT_SECRET;
 
-    // Get access token
     const tokenRes = await fetch(
       `https://id.twitch.tv/oauth2/token?client_id=${clientId}&client_secret=${clientSecret}&grant_type=client_credentials`,
       { method: "POST" }
@@ -15,26 +13,45 @@ export async function GET(req) {
     const accessToken = tokenData.access_token;
 
     if (!accessToken) {
-      return NextResponse.json({ error: "Failed to get access token" }, { status: 500 });
+      return NextResponse.json(
+        { error: "Failed to get access token" },
+        { status: 500 }
+      );
     }
 
-    // Extract search param from URL
     const { searchParams } = new URL(req.url);
     const searchTerm = searchParams.get("search");
+    const genreId = searchParams.get("genre");
+    
 
-    // Build IGDB query
-    let query = "fields name, release_dates.human, url, cover.url, rating, age_ratings.rating_category, age_ratings.synopsis; limit 20;";
+    let query =
+      "fields name, release_dates.human, url, cover.image_id, rating, age_ratings.rating_category, age_ratings.synopsis, genres; limit 50;";
+
     if (searchTerm) {
-      query = `search "${searchTerm}"; fields name, url, cover.url, release_dates.human, rating, age_ratings.rating_category, age_ratings.synopsis; limit 20; where version_parent = null;`;
+      query = `search "${searchTerm}"; fields name, url, cover.image_id, release_dates.human, rating, age_ratings.rating_category, age_ratings.synopsis, genres; limit 20; where version_parent = null;`;
     }
 
-    // Call IGDB
+    if (genreId) {
+      const genreNum = parseInt(genreId, 10);
+      if (query.includes("where")) {
+        query = query.replace(
+          "where version_parent = null;",
+          `where version_parent = null & genres = ${genreNum};`
+        );
+      } else {
+        query = query.replace(
+          "; limit",
+          `; where genres = ${genreNum}; limit`
+        );
+      }
+    }
+
     const igdbRes = await fetch("https://api.igdb.com/v4/games", {
       method: "POST",
       headers: {
         "Client-ID": clientId,
-        "Authorization": `Bearer ${accessToken}`,
-        "Accept": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+        Accept: "application/json",
       },
       body: query,
     });
@@ -42,13 +59,19 @@ export async function GET(req) {
     if (!igdbRes.ok) {
       const errorText = await igdbRes.text();
       console.error("IGDB request failed:", errorText);
-      return NextResponse.json({ error: "Failed to fetch games from IGDB" }, { status: igdbRes.status });
+      return NextResponse.json(
+        { error: "Failed to fetch games from IGDB" },
+        { status: igdbRes.status }
+      );
     }
 
     const games = await igdbRes.json();
     return NextResponse.json(games);
   } catch (error) {
     console.error("Error fetching games:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
   }
 }
